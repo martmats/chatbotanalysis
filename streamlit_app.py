@@ -1,65 +1,47 @@
 import streamlit as st
-import pandas as pd
 from openai import OpenAI
-
-# Mostrar el título y la descripción de la aplicación.
-st.title("💬 Chatbot con Análisis de CSV")
+# Show title and description.
+st.title("💬 Chatbot")
 st.write(
-    "Este es un chatbot simple que usa el modelo GPT-3.5 de OpenAI para generar respuestas. "
-    "Para usar esta app, necesitas proporcionar una clave de API de OpenAI, que puedes obtener [aquí](https://platform.openai.com/account/api-keys). "
+    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
+    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
+    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
 )
-
-# Pedir al usuario su clave de API de OpenAI.
+# Ask user for their OpenAI API key via `st.text_input`.
+# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
+# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
 openai_api_key = st.text_input("OpenAI API Key", type="password")
 if not openai_api_key:
-    st.info("Por favor, añade tu clave de API de OpenAI para continuar.", icon="🗝️")
+    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 else:
-    # Crear un cliente de OpenAI.
+    # Create an OpenAI client.
     client = OpenAI(api_key=openai_api_key)
-
-    # Cargar archivo CSV
-    uploaded_file = st.file_uploader("Sube un archivo CSV para análisis", type="csv")
-    if uploaded_file:
-        # Leer y mostrar el CSV
-        df = pd.read_csv(uploaded_file)
-        st.write("Datos cargados:")
-        st.dataframe(df)
-
-        # Convertir el contenido del CSV a un formato de texto para el modelo
-        csv_text = df.to_string()
-
-    # Crear una variable de estado de sesión para almacenar los mensajes.
+    # Create a session state variable to store the chat messages. This ensures that the
+    # messages persist across reruns.
     if "messages" not in st.session_state:
         st.session_state.messages = []
-
-    # Mostrar los mensajes de chat existentes.
+    # Display the existing chat messages via `st.chat_message`.
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-
-    # Crear un campo de entrada de chat para el usuario.
-    if prompt := st.chat_input("¿Cuál es tu pregunta?"):
-
-        # Almacenar y mostrar la pregunta del usuario.
+    # Create a chat input field to allow the user to enter a message. This will display
+    # automatically at the bottom of the page.
+    if prompt := st.chat_input("What is up?"):
+        # Store and display the current prompt.
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-
-        # Generar una respuesta usando la API de OpenAI, incluyendo los datos del CSV si están cargados.
-        context = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-        
-        # Agregar contexto del CSV si existe
-        if uploaded_file:
-            context.append({"role": "system", "content": f"Aquí están los datos del CSV para referencia: {csv_text}"})
-
+        # Generate a response using the OpenAI API.
         stream = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=context,
+            messages=[
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages
+            ],
             stream=True,
         )
-
-        # Mostrar la respuesta del modelo
+        # Stream the response to the chat using `st.write_stream`, then store it in 
+        # session state.
         with st.chat_message("assistant"):
             response = st.write_stream(stream)
         st.session_state.messages.append({"role": "assistant", "content": response})
-
